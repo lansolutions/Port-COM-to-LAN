@@ -13,27 +13,27 @@ namespace Port_COM_to_LAN
     {
         string IpClient;     
         string EnvioDados;
-
+        SimpleTcpClient client;
         public PortaLANClient(string Dados)
         {
-            IpClient = new ConfiguracaoDosParametros().DadosParametros.Where(x => x.Nome == "ENDEREÇO IPV4 CONTROL CENTER CLIENT").FirstOrDefault().Valor;
+            IpClient = Dados.Split(';')[1];
             EnvioDados = "Peso;";
             EnvioDados += Dados;
             ForçarSincronizacao();
         }
 
-
         public void ForçarSincronizacao()
         {
             try
             {
-                using (SimpleTcpClient client = new SimpleTcpClient($"{IpClient}:3700"))
+                using (client = new SimpleTcpClient($"{IpClient}"))
                 {
                     client.Connect();
 
                     client.Send(EnvioDados);
 
-                    client.Events.DataSent += (s, f) => { client.Disconnect(); };                    
+                    client.Events.DataSent += DadosRecebidos;                       
+                                     
                 }
             }
             catch (Exception Ex)
@@ -41,6 +41,12 @@ namespace Port_COM_to_LAN
                 Log.Logger(Ex.ToString());
             }
 
+        }
+
+        public void DadosRecebidos(object sender, DataSentEventArgs e)
+        {
+            Log.Logger("Peso Enviado");
+            client.Disconnect();
         }
 
     }
@@ -54,8 +60,7 @@ namespace Port_COM_to_LAN
         public PortaLANServer()
         {
             IniciarServidor();
-        }
-        
+        }        
        
         private void IniciarServidor()
         {
@@ -103,11 +108,6 @@ namespace Port_COM_to_LAN
             {
                 Log.Logger(Ex.ToString());
             }
-
-
-            
-          
-
         }
        
         private void Events_DataReceived(object sender, DataReceivedEventArgs e)
@@ -116,11 +116,10 @@ namespace Port_COM_to_LAN
             {
                 RecebimentoDados = Encoding.UTF8.GetString(e.Data);
 
-                if (RecebimentoDados == "RequisicaoDePeso")
+                if (RecebimentoDados.Contains("RequisicaoDePeso"))
                 {
-                    new PortaCOM(out decimal Peso);
-
-                    new PortaLANClient(Peso.ToString());
+                    string IpPorta = $"{e.IpPort.Split(':')[0]}:{RecebimentoDados.Split(';')[1]}";                   
+                    new PortaCOM(IpPorta);
                 }
             }
             catch(Exception Ex)

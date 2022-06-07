@@ -9,17 +9,19 @@ namespace Port_COM_to_LAN
 {
     internal class PortaCOM
     {
-        public SerialPort PortaBalança;
+        public decimal Peso { get; set; }
 
-        public decimal Peso = 0;
-        public PortaCOM(out decimal Peso)
+        public string Ip;
+
+        public PortaCOM(string Ip)
         {
+            this.Ip = Ip;
             CapturarPesoBalança();
-            Peso = this.Peso;
         }
-
-        public void CapturarPesoBalança()
+        public decimal CapturarPesoBalança()
         {
+            decimal Peso = 0;
+           
             try
             {
                 string[] Configuracao = new ConfiguracaoDosParametros().DadosParametros.Where(x => x.Nome == "PORTA COMx BALANCA").Select(x => x.Valor).FirstOrDefault().Split(';');
@@ -30,9 +32,9 @@ namespace Port_COM_to_LAN
                 int DataBits = Convert.ToInt32(Configuracao[3]);
                 int BitsParada = Convert.ToInt32(Configuracao[4]);
 
-                PortaBalança = new SerialPort(Porta, BaudRate, (Parity)Paridade, DataBits, (StopBits)BitsParada);
+                SerialPort PortaBalança = new SerialPort(Porta, BaudRate, (Parity)Paridade, DataBits, (StopBits)BitsParada);
 
-                PortaBalança.DataReceived += DadosRecebidos;
+                PortaBalança.DataReceived += (s, e) => DadosRecebidos(PortaBalança);
 
                 if (!PortaBalança.IsOpen)
                 {
@@ -45,16 +47,20 @@ namespace Port_COM_to_LAN
             {
                 Log.Logger(Ex.ToString());
             }
+            
+            return Peso;
+
         }
 
-
-        public void DadosRecebidos(object sender, SerialDataReceivedEventArgs e)
+        public void DadosRecebidos(SerialPort PortaBalança)
         {
             var hexString = PortaBalança.ReadExisting();
             hexString = hexString.Substring(hexString.Length - 6, 5);
-            Peso = decimal.Parse(hexString) / 1000.0M;
+            Peso = decimal.Parse(hexString) / 1000.0M; Peso = Math.Round(Peso, 3);
+            Log.Logger($"Peso Adquirido: {Peso}");
             PortaBalança.Close();
-        }
+            new PortaLANClient($"{Peso};{Ip}");
 
+        }
     }
 }
